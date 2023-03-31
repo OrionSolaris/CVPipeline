@@ -8,12 +8,12 @@ Work In Progress
 
 ## Plans
 
-- [] Implement Detector microservice
-- [] Implement Processing microservices
-- [] Implement Tracker microservice
-- [] Create Pipeline to flow data through
-- [] Implement additional helper services for logging/metrics
-- [] Capability to launch onto a K8S cluster
+- [ ] Implement Detector microservice
+- [ ] Implement Processing microservices
+- [ ] Implement Tracker microservice
+- [ ] Create Pipeline to flow data through
+- [ ] Implement additional helper services for logging/metrics
+- [ ] Capability to launch onto a K8S cluster
 
 ## Licence
 
