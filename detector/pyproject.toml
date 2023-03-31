@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "cvpipeline-tracker"
+version = "0.1.0"
+description = ""
+authors = ["Mathias Ho"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "==3.9.16"
+jina = "^3.14.1"
+torch = "^2.0.0"
+torchvision = "^0.15.1"
+torchaudio = "^2.0.1"
+pandas = "^1.5.3"
+opencv-python = "^4.7.0.72"
+tdqm = "^0.0.1"
+thop = "^0.1.1.post2209072238"
+matplotlib = "^3.7.1"
+seaborn = "^0.12.2"
+numpy = "^1.24.2"
+scipy = "^1.10.1"
+protobuf = "^4.22.1"
+
+[tool.poetry.dev-dependencies]
+poethepoet = "^0.10.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
