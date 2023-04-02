@@ -1,79 +1,149 @@
-from jina import Executor
+from jina import Executor, requests, DocumentArray, Flow
+from rich import print
 import torch
-import time
+import torch.backends.cudnn as cudnn
 import random
-import cv2
 import numpy as np
 from models.experimental import attempt_load
-from utils.general import check_img_size, check_requirements, \
-                check_imshow, non_max_suppression, apply_classifier, \
-                scale_coords, xyxy2xywh, strip_optimizer, set_logging, \
-                increment_path
+from utils.get_classes import get_classes
+from utils.general import (
+    check_img_size,
+    non_max_suppression,
+    scale_coords,
+)
 from utils.plots import plot_one_box
-from utils.torch_utils import select_device, load_classifier, time_synchronized, TracedModel
+from utils.torch_utils import select_device, time_synchronized, TracedModel
 from utils.datasets import letterbox
-class Tracker(Executor):
+
+
+class Detector(Executor):
     def __init__(
-        self, device: str = "cpu", weights="models/yolov7-w6.pt", *args, **kwargs
+        self,
+        img_size: int = 640,
+        device: str = "cpu",
+        weights: str = "./models/yolov7.pt",
+        trace: bool = False,
+        colors: list = None,
+        *args,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        self.model = torch.load(weights)
 
-model = attempt_load("./models/yolov7-w6.pt")
-device = select_device("0")
-half = device.type != 'cpu'
-stride = int(model.stride.max()) 
-imgsz = check_img_size(1280, s=stride)  # check img_size
-if half:
-        model.half()
+        self.device = select_device(str(device))
+        self.half = self.device.type != "cpu"
+        self.model = attempt_load(weights, map_location=self.device)
+        self.stride = int(self.model.stride.max())
+        self.img_size = check_img_size(img_size, s=self.stride)
+        if trace:
+            self.model = TracedModel(self.model, self.device, img_size)
+        if self.half:
+            self.model = self.model.half()
+        if self.device.type != "cpu":
+            self.model(
+                torch.zeros(1, 3, self.img_size, self.img_size)
+                .to(self.device)
+                .type_as(next(self.model.parameters()))
+            )
+        self.old_img_w = self.old_img_h = self.img_size
+        self.old_img_b = 1
 
-names = model.module.names if hasattr(model, 'module') else model.names
-colors = [[random.randint(0, 255) for _ in range(3)] for _ in names]
-print(stride,names,colors)
+        self.names = (
+            self.model.module.names
+            if hasattr(self.model, "module")
+            else self.model.names
+        )
+        print(
+            f"\n[green]INFO[/green]: {len(self.names)} total classes for detector: {self.names}"
+        )
+        self.colors = (
+            colors
+            if colors
+            else [[random.randint(0, 255) for _ in range(3)] for _ in self.names]
+        )
+        cudnn.benchmark = True
 
-old_img_w = old_img_h = imgsz
-old_img_b = 1
+    @requests
+    def detect(self, docs: DocumentArray, **kwargs):
+        with torch.no_grad():
+            # docs_to_return = DocumentArray()
+            # docs.map()
+            processed_img = letterbox(
+                docs[0].embedding, self.img_size, stride=self.stride
+            )[0]
+            processed_img = processed_img[:, :, ::-1].transpose(
+                2, 0, 1
+            )  # BGR to RGB, to 3x416x416
+            processed_img = np.ascontiguousarray(processed_img)
+            processed_img = torch.from_numpy(processed_img).to(self.device)
+            processed_img = processed_img.half() if self.half else processed_img.float()
+            processed_img /= 255.0
+            if processed_img.ndimension() == 3:
+                processed_img = processed_img.unsqueeze(0)
+            if self.device.type != "cpu" and (
+                self.old_img_b != processed_img.shape[0]
+                or self.old_img_h != processed_img.shape[2]
+                or self.old_img_w != processed_img.shape[3]
+            ):
+                self.old_img_b = processed_img.shape[0]
+                self.old_img_h = processed_img.shape[2]
+                self.old_img_w = processed_img.shape[3]
+                for i in range(3):
+                    self.model(
+                        processed_img,
+                        augment=docs[0].tags["augment"]
+                        if "augment" in docs[0].tags
+                        else True,
+                    )[0]
+            t1 = time_synchronized()
+            with torch.no_grad():
+                pred = self.model(
+                    processed_img,
+                    augment=docs[0].tags["augment"]
+                    if "augment" in docs[0].tags
+                    else True,
+                )[0]
+            t2 = time_synchronized()
+            pred = non_max_suppression(
+                pred,
+                conf_thres=docs[0].tags["confidence_threshold"]
+                if "confidence_threshold" in docs[0].tags
+                else 0.25,
+                iou_thres=docs[0].tags["iou_threshold"]
+                if "iou_threshold" in docs[0].tags
+                else 0.45,
+                classes=get_classes(docs[0].tags.get("classes"), self.names),
+                agnostic=docs[0].tags["agnostic_nms"]
+                if "agnostic_nms" in docs[0].tags
+                else True,
+            )
+            t3 = time_synchronized()
+            for i, det in enumerate(pred):
+                gn = torch.tensor(docs[0].embedding.shape)[
+                    [1, 0, 1, 0]
+                ]  # normalization gain whwh
+                if len(det):
+                    # Rescale boxes from img_size to im0 size
+                    det[:, :4] = scale_coords(
+                        processed_img.shape[2:], det[:, :4], docs[0].embedding.shape
+                    ).round()
 
+                    # Print results
+                    for c in det[:, -1].unique():
+                        n = (det[:, -1] == c).sum()  # detections per class
 
-img0 = cv2.imread('horses.jpeg')
-img = letterbox(img0, (1280,1280), stride = stride)[0]
-img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
-img = np.ascontiguousarray(img)
-t0 = time.time()
-img = torch.from_numpy(img).to(device)
-img = img.half() if half else img.float()  # uint8 to fp16/32
-img /= 255.0  # 0 - 255 to 0.0 - 1.0
-if img.ndimension() == 3:
-    img = img.unsqueeze(0)
-if device.type != 'cpu' and (old_img_b != img.shape[0] or old_img_h != img.shape[2] or old_img_w != img.shape[3]):
-            old_img_b = img.shape[0]
-            old_img_h = img.shape[2]
-            old_img_w = img.shape[3]
-            for i in range(3):
-                model(img, augment=True)[0]
-t1 = time_synchronized()
-pred = model(img, augment=True)[0]
-t2 = time_synchronized()
-pred = non_max_suppression(pred, 0.25, 0.45, classes=[0,17], agnostic=True)
-t3 = time_synchronized()
-for i, det in enumerate(pred):
-        gn = torch.tensor(img0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
-        if len(det):
-                # Rescale boxes from img_size to im0 size
-                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], img0.shape).round()
+                    # Write results
+                    for *xyxy, conf, cls in reversed(det):
 
-                # Print results
-                for c in det[:, -1].unique():
-                    n = (det[:, -1] == c).sum()  # detections per class
-                    
-
-                # Write results
-                for *xyxy, conf, cls in reversed(det):
-
-                    label = f'{names[int(cls)]} {conf:.2f}'
-                    plot_one_box(xyxy, img0, label=label, color=colors[int(cls)], line_thickness=1)
-                    
-cv2.imshow("1", img0)
-if cv2.waitKey(0) == ord('q'):  # q to quit
-    cv2.destroyAllWindows()
-    raise StopIteration
+                        label = f"{self.names[int(cls)]} {conf:.2f}"
+                        plot_one_box(
+                            xyxy,
+                            docs[0].embedding,
+                            label=label,
+                            color=self.colors[int(cls)],
+                            line_thickness=1,
+                        )
+            print(
+                f"[green]INFO[/green]: Done! ([blue]{round(1E3 * (t2 - t1),1)}ms[/blue]) Inference, ([blue]{round(1E3 * (t3 - t2),1)}ms[/blue]) NMS"
+            )
+            #     docs_to_return.append(doc)
+            # return docs_to_return
