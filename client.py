@@ -22,7 +22,7 @@ c = Client(host="grpc://0.0.0.0:8080")
 #     cv2.destroyAllWindows()
 #     raise StopIteration
 
-cap = cv2.VideoCapture("../nyc_walking2.mp4")
+cap = cv2.VideoCapture("nyc_walking2.mp4")
 fps = cap.get(cv2.CAP_PROP_FPS)
 print(fps)
 while True:

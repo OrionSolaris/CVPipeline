@@ -1,5 +1,4 @@
 __pycache__
-detector/models/*.pt
-detector/*.pt
+detector/executor/weights/*.pt
 *.webm
 *.mp4

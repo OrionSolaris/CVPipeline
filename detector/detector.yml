@@ -1,0 +1,6 @@
+jtype: Detector
+with:
+  match_args: {}
+py_modules:
+ - executor/__init__.py
+  
