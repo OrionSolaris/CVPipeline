@@ -1,13 +1,10 @@
 from jina import Flow
 
-f = Flow(port=8080, extra_search_paths=["executors/detector"]).add(
-    name="DetectorYoloV7",
+f = Flow(port=8080, extra_search_paths=["detector"]).add(
+    name="DetectorYoloV8",
     uses="detector.yml",
     uses_with={
-        "weights": "executors/detector/executor/weights/yolov7.pt",
-        "device": "0",
-        "img_size": 640,
-        "trace": True,
+        "weights": "./detector/executor/weights/yolov8s.onnx",
     },
 )
 
