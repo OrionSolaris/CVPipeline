@@ -1,26 +1,10 @@
 from jina import Client, Document, DocumentArray
-import cv2
-from detector.utils.torch_utils import time_synchronized
 from rich import print
+import cv2
+
+from utils.torch_sync import time_synchronized
 
 c = Client(host="grpc://0.0.0.0:8080")
-
-# img = cv2.imread("horses.jpeg")
-# doc = DocumentArray(
-#     [
-#         Document(
-#             tensor=img, tags={"identity": "cam1", "augment": True, "classes": [0, 17]}
-#         )
-#     ]
-# )
-# resp = c.post("/", doc)
-# for x in resp:
-#     print(x.tags)
-
-# cv2.imshow("pred", resp[0].tensor)
-# if cv2.waitKey(0) == ord("q"):  # q to quit
-#     cv2.destroyAllWindows()
-#     raise StopIteration
 
 cap = cv2.VideoCapture("nyc_walking2.mp4")
 fps = cap.get(cv2.CAP_PROP_FPS)
@@ -39,17 +23,17 @@ while True:
     doc = DocumentArray(
         [
             Document(
-                embedding=frame,
-                tags={"identity": "cam1", "augment": True, "classes": [0]},
+                tensor=frame,
+                tags={"identity": "cam1", "classes": [0]},
             )
         ]
     )
     resp = c.post("/", doc, request_size=1)
     t2 = time_synchronized()
-    cv2.imshow("pred", resp[0].embedding)
+    cv2.imshow("pred", resp[0].tensor)
     t3 = time_synchronized()
     print(
-        f"[green]INFO[/green]: Done! ([blue]{round(1E3 * (t1 - t0),1)}ms[/blue]) Read Frame, ([blue]{round(1E3 * (t2 - t1),1)}ms[/blue]) Send/Recieve , ([blue]{round(1E3 * (t3 - t2),1)}ms[/blue]) Show Frame"
+        f"[green]INFO[/green]: Done! ([blue][bold]{round(1E3 * (t1 - t0),1)}ms[/bold][/blue]) Read Frame, ([blue][bold]{round(1E3 * (t2 - t1),1)}ms[/bold][/blue]) Send/Recieve, ([blue][bold]{round(1E3 * (t3 - t2),1)}ms[/bold][/blue]) Show Frame, ([blue]{round(1000/round(sum([round(1E3 * (t1 - t0),1),round(1E3 * (t2 - t1),1),round(1E3 * (t3 - t2),1)])),2)}[/blue]) Est. FPS"
     )
     if cv2.waitKey(1) == ord("q"):
         break
