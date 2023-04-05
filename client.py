@@ -71,7 +71,7 @@ while True:
 
     t3 = time_synchronized()
     print(
-        f"[green]INFO[/green]: Done! ([blue][bold]{round(1E3 * (t1 - t0),1)}ms[/bold][/blue]) Read Frame, ([blue][bold]{round(1E3 * (t2 - t1),1)}ms[/bold][/blue]) Send/Recieve, ([blue][bold]{round(1E3 * (t3 - t2),1)}ms[/bold][/blue]) Show Frame, ([blue]{fps:.1f}[/blue]) Est. FPS"
+        f"[green]INFO[/green]: Done! ([blue][bold]{round(1E3 * (t1 - t0),1)}ms[/bold][/blue]) Read Frame, ([blue][bold]{round(1E3 * (t2 - t1),1)}ms[/bold][/blue]) Send/Receive, ([blue][bold]{round(1E3 * (t3 - t2),1)}ms[/bold][/blue]) Show Frame, ([blue]{fps:.1f}[/blue]) Est. FPS"
     )
 
     section_metrics.read_frames["values"] = np.append(
