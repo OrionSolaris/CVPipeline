@@ -8,7 +8,7 @@ class Timer:
     def __init__(self):
 
         self.read_frames = {"name": "Read Frame", "values": np.array([])}
-        self.send_recieve = {"name": "Send Recieve", "values": np.array([])}
+        self.send_recieve = {"name": "Send Receive", "values": np.array([])}
         self.show_frames = {"name": "Show Frame", "values": np.array([])}
 
         self.total_serialise = {
